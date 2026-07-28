@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  angelic-web:
+    build: .
+    image: ghcr.io/1098542053/angelic-web:latest
+    container_name: angelic-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATA_DIR=/data
+      - TZ=Asia/Shanghai
+    volumes:
+      # ─── 资源文件映射 ───
+      # 宿主机路径: /vol2/1000/项目/angelic/data
+      # 容器内路径: /data
+      # data 目录结构:
+      #   /data/images/bg/       - 背景图片
+      #   /data/images/stand/     - 立绘图片
+      #   /data/images/thumbnail/ - 缩略图
+      #   /data/images/shome/     - 首页图片
+      #   /data/images/gui/       - GUI 图片
+      #   /data/audio/bgm/        - 背景音乐
+      #   /data/audio/ext_voice/  - 语音文件
+      #   /data/resources/        - CG/视频资源
+      #   /data/script/           - 剧本文件 (.rpy)
+      #   /data/character_names.json - 角色名映射
+      #   /data/script.rpy        - 主剧本
+      #
+      # 在可视化 Docker 界面中将宿主机路径映射到 /data
+      - /vol2/1000/项目/angelic/data:/data:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

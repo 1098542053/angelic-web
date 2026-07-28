@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Angelic Py - Web Reader</title>
+  <link rel="stylesheet" href="/css/style.css?v2">
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div id="loading-screen" style="display:none;">
+    <div class="loading-spinner"></div>
+    <div>読み込み中...</div>
+  </div>
+
+  <!-- Main Menu -->
+  <div id="main-menu">
+    <div id="main-title"></div>
+    <select id="lang-select">
+      <option value="">日本語</option>
+      <option value="zh-CN">中文</option>
+    </select>
+    <div id="main-menu-content">
+      <h1 class="game-title">Angelic Py</h1>
+      <div class="menu-btn-group">
+        <button id="main-start-all" class="menu-btn">All H-scene</button>
+        <button id="main-start-char" class="menu-btn">H-scene by character</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reader Area -->
+  <div id="reader-wrap" style="display:none;">
+    <!-- Background Layer -->
+    <div id="reader-bg"></div>
+
+    <!-- Stand Character Layer -->
+    <div id="stand-layer"></div>
+
+    <!-- Choice Container -->
+    <div id="choice-container"></div>
+
+    <!-- Dialog Box -->
+    <div id="dialog-box">
+      <div id="dialog-speaker"></div>
+      <div id="dialog-text"></div>
+    </div>
+
+    <!-- Bottom Controls -->
+    <div id="bottom-controls">
+      <button id="btn-back" class="ctrl-btn" title="返回菜单">← 戻る</button>
+      <button id="btn-skip" class="ctrl-btn gui-btn" title="跳过">>></button>
+      <button id="btn-auto" class="ctrl-btn gui-btn" title="自动模式">自動</button>
+      <button id="btn-log" class="ctrl-btn" title="对话记录">履歴</button>
+    </div>
+
+    <!-- X Toggle UI - always visible, outside bottom-controls -->
+    <button id="btn-toggle-ui" title="隐藏/显示UI" style="display:none">X</button>
+  </div>
+
+  <!-- Navigation Panel -->
+  <div id="nav-panel" class="collapsed">
+    <div id="nav-toggle">☰</div>
+    <div id="nav-list"></div>
+  </div>
+
+  <!-- Review Panel -->
+  <div id="review-panel" style="display:none;">
+    <div id="review-header">
+      <span>对话记录</span>
+      <button id="review-close">✕</button>
+    </div>
+    <div id="review-list"></div>
+  </div>
+
+  <script src="/js/novel-reader.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

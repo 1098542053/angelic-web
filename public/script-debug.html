@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>剧本指令解析 - 调试页面</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Yu Gothic", "Noto Sans SC", "Hiragino Sans", "Microsoft YaHei", sans-serif;
+    background: #0d0d0d;
+    color: #e0e0e0;
+    min-height: 100vh;
+    padding: 20px;
+  }
+
+  .debug-container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 26px;
+    font-weight: 300;
+    letter-spacing: 2px;
+    color: #ffd700;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 215, 0, 0.2);
+  }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  select, button, .stat-box {
+    font-family: inherit;
+  }
+
+  select {
+    flex: 1;
+    min-width: 300px;
+    padding: 10px 14px;
+    font-size: 14px;
+    background: #1a1a1a;
+    color: #e0e0e0;
+    border: 1px solid #333;
+    border-radius: 6px;
+    outline: none;
+    cursor: pointer;
+  }
+  select:focus {
+    border-color: #ffd700;
+  }
+  select option {
+    background: #1a1a1a;
+    color: #e0e0e0;
+  }
+
+  #parse-btn {
+    padding: 10px 32px;
+    font-size: 15px;
+    background: #ffd700;
+    color: #1a1a1a;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  #parse-btn:hover {
+    background: #ffe44d;
+    transform: translateY(-1px);
+  }
+  #parse-btn:disabled {
+    background: #555;
+    color: #888;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .summary-bar {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+
+  .stat-box {
+    padding: 8px 18px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #ccc;
+  }
+  .stat-box .num {
+    color: #ffd700;
+    font-weight: 600;
+  }
+
+  #log-container {
+    background: #111;
+    border: 1px solid #222;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .log-header {
+    display: flex;
+    padding: 10px 16px;
+    background: #1a1a1a;
+    border-bottom: 1px solid #2a2a2a;
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    gap: 12px;
+  }
+  .log-header .col-seq { width: 55px; flex-shrink: 0; }
+  .log-header .col-type { width: 100px; flex-shrink: 0; }
+  .log-header .col-cmd { flex: 1; }
+  .log-header .col-desc { width: 260px; flex-shrink: 0; }
+
+  .log-entry {
+    display: flex;
+    padding: 8px 16px;
+    border-bottom: 1px solid #1a1a1a;
+    font-size: 13px;
+    line-height: 1.6;
+    gap: 12px;
+    align-items: flex-start;
+    transition: background 0.15s;
+  }
+  .log-entry:hover {
+    background: rgba(255,255,255,0.03);
+  }
+  .log-entry:last-child {
+    border-bottom: none;
+  }
+
+  .log-entry .col-seq {
+    width: 55px;
+    flex-shrink: 0;
+    color: #666;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 12px;
+    padding-top: 2px;
+  }
+
+  .log-entry .col-type {
+    width: 100px;
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 1px 8px;
+    border-radius: 4px;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .log-entry .col-cmd {
+    flex: 1;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 12px;
+    color: #b0b0b0;
+    word-break: break-all;
+    min-width: 0;
+  }
+
+  .log-entry .col-desc {
+    width: 260px;
+    flex-shrink: 0;
+    font-size: 13px;
+    padding-top: 1px;
+    word-break: break-all;
+  }
+
+  /* Type colors */
+  .type-label {
+    background: rgba(255, 215, 0, 0.15);
+    color: #ffd700;
+    border: 1px solid rgba(255, 215, 0, 0.2);
+  }
+  .type-scene {
+    background: rgba(0, 0, 0, 0.3);
+    color: #888;
+    border: 1px solid #333;
+  }
+  .type-show-bg {
+    background: rgba(100, 180, 255, 0.15);
+    color: #64b4ff;
+    border: 1px solid rgba(100, 180, 255, 0.2);
+  }
+  .type-show-stand {
+    background: rgba(255, 180, 100, 0.15);
+    color: #ffb464;
+    border: 1px solid rgba(255, 180, 100, 0.2);
+  }
+  .type-show-cg {
+    background: rgba(255, 100, 180, 0.15);
+    color: #ff64b4;
+    border: 1px solid rgba(255, 100, 180, 0.2);
+  }
+  .type-hide {
+    background: rgba(200, 200, 200, 0.1);
+    color: #999;
+    border: 1px solid rgba(200, 200, 200, 0.15);
+  }
+  .type-music {
+    background: rgba(100, 255, 180, 0.15);
+    color: #64ffb4;
+    border: 1px solid rgba(100, 255, 180, 0.2);
+  }
+  .type-voice {
+    background: rgba(255, 100, 100, 0.15);
+    color: #ff6464;
+    border: 1px solid rgba(255, 100, 100, 0.2);
+  }
+  .type-dialogue {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ddd;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .type-other {
+    background: rgba(255, 255, 255, 0.05);
+    color: #aaa;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .type-menu {
+    background: rgba(255, 100, 255, 0.15);
+    color: #ff64ff;
+    border: 1px solid rgba(255, 100, 255, 0.2);
+  }
+  .type-return {
+    background: rgba(255, 0, 0, 0.1);
+    color: #ff4444;
+    border: 1px solid rgba(255, 0, 0, 0.15);
+  }
+
+  /* Description icons */
+  .desc-icon { margin-right: 4px; }
+
+  .resource-ok { color: #4caf50; }
+  .resource-missing { color: #f44336; }
+  .resource-pending { color: #888; }
+
+  /* Transform details */
+  .transform-info {
+    font-size: 11px;
+    color: #888;
+    margin-top: 2px;
+    font-family: "Consolas", "Courier New", monospace;
+  }
+
+  /* Loading overlay */
+  #loading-indicator {
+    display: none;
+    text-align: center;
+    padding: 40px;
+    color: #888;
+    font-size: 14px;
+  }
+  #loading-indicator .spinner {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    border: 2px solid #333;
+    border-top-color: #ffd700;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Error state */
+  #error-message {
+    display: none;
+    padding: 16px;
+    background: rgba(244, 67, 54, 0.1);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    border-radius: 6px;
+    color: #f44336;
+    margin-bottom: 16px;
+    font-size: 14px;
+  }
+
+  .no-results {
+    padding: 40px;
+    text-align: center;
+    color: #666;
+    font-size: 14px;
+  }
+
+  /* scene black styles */
+  .scene-black { color: #666; }
+  .scene-black .col-desc::before { content: "🖤 "; }
+
+  /* Scrollbar */
+  #log-container::-webkit-scrollbar { width: 8px; }
+  #log-container::-webkit-scrollbar-track { background: #111; }
+  #log-container::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+  #log-container::-webkit-scrollbar-thumb:hover { background: #555; }
+</style>
+</head>
+<body>
+
+<div class="debug-container">
+  <h1>📜 剧本指令解析 · 调试页面</h1>
+
+  <div class="controls">
+    <select id="script-select">
+      <option value="">— 选择一个剧本文件 —</option>
+    </select>
+    <button id="parse-btn" disabled>解析</button>
+  </div>
+
+  <div id="error-message"></div>
+
+  <div class="summary-bar" id="summary-bar" style="display:none;">
+    <div class="stat-box">指令总数: <span class="num" id="stat-total">0</span></div>
+    <div class="stat-box">对话: <span class="num" id="stat-dialogue">0</span></div>
+    <div class="stat-box">背景: <span class="num" id="stat-bg">0</span></div>
+    <div class="stat-box">立绘: <span class="num" id="stat-stand">0</span></div>
+    <div class="stat-box">CG: <span class="num" id="stat-cg">0</span></div>
+    <div class="stat-box">BGM: <span class="num" id="stat-music">0</span></div>
+    <div class="stat-box">语音: <span class="num" id="stat-voice">0</span></div>
+    <div class="stat-box">图片定义: <span class="num" id="stat-imagedef">0</span></div>
+    <div class="stat-box">标签: <span class="num" id="stat-label">0</span></div>
+  </div>
+
+  <div id="loading-indicator">
+    <div class="spinner"></div>
+    <div>解析中...</div>
+  </div>
+
+  <div id="log-container" style="display:none;">
+    <div class="log-header">
+      <div class="col-seq">#</div>
+      <div class="col-type">类型</div>
+      <div class="col-cmd">原始指令</div>
+      <div class="col-desc">解析说明</div>
+    </div>
+    <div id="log-entries"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const els = {
+    select: document.getElementById('script-select'),
+    parseBtn: document.getElementById('parse-btn'),
+    summaryBar: document.getElementById('summary-bar'),
+    statTotal: document.getElementById('stat-total'),
+    statDialogue: document.getElementById('stat-dialogue'),
+    statBg: document.getElementById('stat-bg'),
+    statStand: document.getElementById('stat-stand'),
+    statCg: document.getElementById('stat-cg'),
+    statMusic: document.getElementById('stat-music'),
+    statVoice: document.getElementById('stat-voice'),
+    statImagedef: document.getElementById('stat-imagedef'),
+    statLabel: document.getElementById('stat-label'),
+    logContainer: document.getElementById('log-container'),
+    logEntries: document.getElementById('log-entries'),
+    loadingIndicator: document.getElementById('loading-indicator'),
+    errorMessage: document.getElementById('error-message'),
+  };
+
+  let scriptList = [];
+
+  // ---- Load script list ----
+  async function loadScripts() {
+    try {
+      const resp = await fetch('/api/scripts');
+      const data = await resp.json();
+      scriptList = (data.scripts || []).filter(s => s.startsWith('hscene/')).sort();
+      populateSelect(scriptList);
+    } catch (e) {
+      showError('无法加载剧本列表: ' + e.message);
+    }
+  }
+
+  function populateSelect(scripts) {
+    els.select.innerHTML = '<option value="">— 选择一个剧本文件 —</option>';
+    for (const s of scripts) {
+      const opt = document.createElement('option');
+      opt.value = s;
+      // Show short name (without hscene/ prefix and .rpy suffix)
+      const display = s.replace(/^hscene\//, '').replace(/\.rpy$/, '');
+      opt.textContent = display + '  (' + s + ')';
+      els.select.appendChild(opt);
+    }
+    els.parseBtn.disabled = false;
+  }
+
+  // ---- Parse ----
+  els.parseBtn.addEventListener('click', async () => {
+    const path = els.select.value;
+    if (!path) return;
+    await parseScript(path);
+  });
+
+  els.select.addEventListener('change', () => {
+    // Clear previous results when selection changes
+    els.logContainer.style.display = 'none';
+    els.summaryBar.style.display = 'none';
+    els.errorMessage.style.display = 'none';
+  });
+
+  async function parseScript(path) {
+    showLoading(true);
+    els.summaryBar.style.display = 'none';
+    els.logContainer.style.display = 'none';
+    els.errorMessage.style.display = 'none';
+
+    try {
+      const resp = await fetch('/api/parse-script?path=' + encodeURIComponent(path));
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.error || 'HTTP ' + resp.status);
+      }
+      const data = await resp.json();
+      const instructions = data.instructions || [];
+
+      renderLog(instructions);
+      renderSummary(instructions);
+      els.summaryBar.style.display = 'flex';
+      els.logContainer.style.display = 'block';
+    } catch (e) {
+      showError('解析失败: ' + e.message);
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  // ---- Render ----
+  function renderLog(instructions) {
+    els.logEntries.innerHTML = '';
+
+    if (instructions.length === 0) {
+      els.logEntries.innerHTML = '<div class="no-results">该剧本文件没有指令</div>';
+      return;
+    }
+
+    let seq = 0;
+    for (const inst of instructions) {
+      seq++;
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+
+      // Sequence number
+      const seqCol = document.createElement('div');
+      seqCol.className = 'col-seq';
+      seqCol.textContent = '[' + String(seq).padStart(3, '0') + ']';
+      entry.appendChild(seqCol);
+
+      // Type badge
+      const typeCol = document.createElement('div');
+      typeCol.className = 'col-type';
+      const typeInfo = getTypeInfo(inst);
+      typeCol.textContent = typeInfo.label;
+      typeCol.className += ' ' + typeInfo.cssClass;
+      entry.appendChild(typeCol);
+
+      // Command (raw)
+      const cmdCol = document.createElement('div');
+      cmdCol.className = 'col-cmd';
+      cmdCol.textContent = getRawCommand(inst);
+      entry.appendChild(cmdCol);
+
+      // Description
+      const descCol = document.createElement('div');
+      descCol.className = 'col-desc';
+      descCol.innerHTML = buildDescription(inst);
+      entry.appendChild(descCol);
+
+      els.logEntries.appendChild(entry);
+    }
+
+    // Trigger resource verification
+    verifyResources(instructions);
+  }
+
+  function renderSummary(instructions) {
+    let total = 0, dialogue = 0, bg = 0, stand = 0, cg = 0, music = 0, voice = 0, imagedef = 0, label = 0;
+
+    for (const inst of instructions) {
+      total++;
+      switch (inst.type) {
+        case 'dialogue':
+          dialogue++;
+          break;
+        case 'show':
+          if (inst.showType === 'bg') {
+            bg++;
+          } else if (inst.showType === 'cg') {
+            cg++;
+          } else {
+            stand++;
+          }
+          break;
+        case 'play_music':
+          music++;
+          break;
+        case 'voice':
+          voice++;
+          break;
+        case 'image_def':
+          imagedef++;
+          break;
+        case 'label':
+          label++;
+          break;
+      }
+    }
+
+    els.statTotal.textContent = total;
+    els.statDialogue.textContent = dialogue;
+    els.statBg.textContent = bg;
+    els.statStand.textContent = stand;
+    els.statCg.textContent = cg;
+    els.statMusic.textContent = music;
+    els.statVoice.textContent = voice;
+    els.statImagedef.textContent = imagedef;
+    els.statLabel.textContent = label;
+  }
+
+  // ---- Type helpers ----
+  function getTypeInfo(inst) {
+    switch (inst.type) {
+      case 'label':
+        return { label: '标签', cssClass: 'type-label' };
+      case 'scene':
+        return { label: '场景', cssClass: 'type-scene' };
+      case 'show':
+        if (inst.showType === 'bg') {
+          return { label: '背景', cssClass: 'type-show-bg' };
+        } else if (inst.showType === 'cg') {
+          return { label: 'CG图', cssClass: 'type-show-cg' };
+        } else {
+          return { label: '立绘', cssClass: 'type-show-stand' };
+        }
+      case 'hide':
+        return { label: '隐藏', cssClass: 'type-hide' };
+      case 'play_music':
+        return { label: 'BGM', cssClass: 'type-music' };
+      case 'voice':
+        return { label: '语音', cssClass: 'type-voice' };
+      case 'dialogue':
+        return { label: inst.speaker ? '对话' : '旁白', cssClass: 'type-dialogue' };
+      case 'menu':
+        return { label: '选项', cssClass: 'type-menu' };
+      case 'return':
+        return { label: '返回', cssClass: 'type-return' };
+      case 'jump':
+      case 'jump_expression':
+      case 'call':
+      case 'call_screen':
+        return { label: '跳转', cssClass: 'type-other' };
+      default:
+        return { label: inst.type || '其他', cssClass: 'type-other' };
+    }
+  }
+
+  function getRawCommand(inst) {
+    switch (inst.type) {
+      case 'label':
+        return 'label ' + inst.name;
+      case 'scene':
+        return 'scene ' + inst.name;
+      case 'show': {
+        let cmd = 'show ' + inst.name;
+        if (inst.rest) cmd += ' ' + inst.rest;
+        if (inst.transform) cmd += ' {transform}';
+        return cmd;
+      }
+      case 'hide':
+        return 'hide ' + inst.name;
+      case 'play_music':
+        return 'play music "' + (inst.path || '') + '"';
+      case 'voice':
+        return 'voice "' + (inst.path || '') + '"';
+      case 'dialogue':
+        return '"' + (inst.speaker || '') + '" "' + (inst.text || '') + '"';
+      case 'return':
+        return 'return';
+      case 'menu':
+        return 'menu (' + (inst.items || []).length + ' items)';
+      case 'jump':
+        return 'jump ' + (inst.target || '');
+      case 'jump_expression':
+        return 'jump expression ' + (inst.variable || '');
+      case 'call':
+        return 'call ' + (inst.target || '') + (inst.args ? '(' + inst.args + ')' : '');
+      case 'call_screen':
+        return 'call screen ' + (inst.target || '');
+      case 'with':
+        return 'with ' + (inst.effect || '');
+      case 'pause':
+        return 'pause ' + (inst.duration || '');
+      case 'stop_music':
+        return 'stop music';
+      case 'stop_voice':
+        return 'stop voice';
+      case 'play_sound':
+        return 'play "' + (inst.path || '') + '"';
+      case 'image_def':
+        if (inst.composite) {
+          return 'image ' + inst.composite.name + ' = Composite(...)';
+        }
+        return 'image ' + (inst.raw || '');
+      case 'python':
+        return '$ ' + (inst.raw || '');
+      default:
+        return JSON.stringify(inst);
+    }
+  }
+
+  function buildDescription(inst) {
+    switch (inst.type) {
+      case 'label':
+        return '🏷 场景入口标签 <strong>' + inst.name + '</strong>';
+
+      case 'scene':
+        if (inst.name && inst.name.toLowerCase() === 'black') {
+          return '🖤 黑屏清场';
+        }
+        return '🌄 切换场景: ' + inst.name;
+
+      case 'show':
+        if (inst.showType === 'bg') {
+          const name = inst.name.toUpperCase() + '.jpg';
+          return '🖼 背景图：' + name + ' <span class="resource-pending" data-resource="bg:' + inst.name + '">⏳ 验证中...</span>';
+        } else if (inst.showType === 'cg') {
+          const cgName = inst.name.toUpperCase();
+          const withText = inst.rest || '';
+          return '🌅 CG图：' + cgName + ' <span class="resource-pending" data-resource="cg:' + inst.name + '">⏳ 验证中...</span><br><span class="transform-info">' + withText + '</span>';
+        } else {
+          // Character stand
+          const parts = inst.name.split(/\s+/);
+          const charName = parts[0];
+          const exprNum = parts[1] || '';
+          const standName = charName.toLowerCase() + '_st_s_' + (exprNum || '00') + '.png';
+          let desc = '👤 立绘：' + standName + ' <span class="resource-pending" data-resource="stand:' + charName + ':' + exprNum + '">⏳ 验证中...</span>';
+
+          // Parse transform for position info
+          if (inst.transform) {
+            const posInfo = [];
+            const t = inst.transform;
+            const yposMatch = t.match(/ypos\s+(-?[\d.]+)/i);
+            const xalignMatch = t.match(/xalign\s+([\d.]+)/i);
+            const zoomMatch = t.match(/zoom\s+([\d.]+)/i);
+            if (yposMatch) posInfo.push('ypos=' + yposMatch[1]);
+            if (xalignMatch) posInfo.push('xalign=' + xalignMatch[1]);
+            if (zoomMatch) posInfo.push('zoom=' + zoomMatch[1]);
+            if (posInfo.length > 0) {
+              desc += '<br><span class="transform-info">位置: ' + posInfo.join(', ') + '</span>';
+            }
+          }
+          return desc;
+        }
+
+      case 'hide': {
+        let target = inst.name || '';
+        target = target.toUpperCase();
+        if (target.length >= 4 && target.substring(0, 4) === target.substring(0, 4).toUpperCase()) {
+          return '🙈 隐藏角色立绘 ' + target;
+        }
+        return '🙈 隐藏: ' + target;
+      }
+
+      case 'play_music': {
+        const path = inst.path || '';
+        const filename = path.split('/').pop();
+        return '🎵 BGM播放：' + filename + ' <span class="resource-pending" data-resource="music:' + path + '">⏳ 验证中...</span>';
+      }
+
+      case 'voice': {
+        const path = inst.path || '';
+        const filename = path.split('/').pop();
+        return '🎤 语音：' + filename + ' <span class="resource-pending" data-resource="voice:' + path + '">⏳ 验证中...</span>';
+      }
+
+      case 'dialogue':
+        if (inst.speaker) {
+          return '💬 <strong>' + escHtml(inst.speaker) + '</strong> → ' + escHtml(inst.text || '');
+        }
+        return '📖 (旁白) ' + escHtml(inst.text || '');
+
+      case 'menu': {
+        const items = inst.items || [];
+        const lines = ['📋 选项菜单 (' + items.length + '项):'];
+        for (const item of items) {
+          lines.push('<span class="transform-info">  • ' + escHtml(item.label) + ' → ' + item.action + ' ' + item.target + '</span>');
+        }
+        return lines.join('<br>');
+      }
+
+      case 'return':
+        return '🔚 返回';
+
+      case 'jump':
+        return '⤵ 跳转 → ' + (inst.target || '');
+
+      case 'jump_expression':
+        return '⤵ 变量跳转 → ' + (inst.variable || '');
+
+      case 'call':
+        return '📞 调用 → ' + (inst.target || '') + (inst.args ? '(' + inst.args + ')' : '');
+
+      case 'call_screen':
+        return '🖥 调用界面 → ' + (inst.target || '');
+
+      case 'with':
+        return '✨ 过渡效果: ' + (inst.effect || '');
+
+      case 'pause':
+        return '⏸ 暂停 ' + (inst.duration || '') + 's';
+
+      case 'stop_music':
+        return '⏹ 停止BGM';
+
+      case 'stop_voice':
+        return '⏹ 停止语音';
+
+      case 'play_sound':
+        return '🔊 播放音效: ' + (inst.path || '');
+
+      case 'image_def':
+        if (inst.composite) {
+          const name = inst.composite.name || '';
+          const layers = inst.composite.layers || [];
+          // First layer is usually base body (_st_s_99), rest are expressions
+          let desc = '🧩 Composite定义: <strong>' + name + '</strong><br>';
+          for (let li = 0; li < layers.length; li++) {
+            const layer = layers[li];
+            const isBase = layer.match(/_st_s_99$/i);
+            const label = isBase ? '底图(body)' : '表情(expr)';
+            desc += '<span class="transform-info">  Layer' + (li + 1) + ' (' + label + '): ' + layer + '</span><br>';
+          }
+          return desc;
+        }
+        return '🖼 定义图片: ' + (inst.raw || '').substring(0, 60);
+
+      case 'python':
+        return '🐍 ' + escHtml(inst.raw || '');
+
+      default:
+        return '❓ 未知指令类型: ' + inst.type;
+    }
+  }
+
+  function escHtml(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/\\n/g, '<br>');
+  }
+
+  // ---- Resource Verification ----
+  function verifyResources(instructions) {
+    for (let i = 0; i < instructions.length; i++) {
+      const inst = instructions[i];
+      if (inst.type === 'show') {
+        if (inst.showType === 'bg') {
+          verifyBg(inst.name, i);
+        } else if (inst.showType === 'cg') {
+          verifyCG(inst.name, i);
+        } else {
+          const parts = inst.name.split(/\s+/);
+          verifyStand(parts[0], parts[1] || '', i);
+        }
+      } else if (inst.type === 'play_music') {
+        verifyMusic(inst.path, i);
+      } else if (inst.type === 'voice') {
+        verifyVoice(inst.path, i);
+      }
+    }
+  }
+
+  function updateResourceStatus(index, statusText, isOk) {
+    const entries = els.logEntries.querySelectorAll('.log-entry');
+    if (entries[index]) {
+      const pending = entries[index].querySelector('[data-resource]');
+      if (pending) {
+        pending.className = isOk ? 'resource-ok' : 'resource-missing';
+        pending.textContent = isOk ? '✅ 存在' : '❌ 不存在';
+      }
+    }
+  }
+
+  function verifyBg(name, index) {
+    const upper = name.toUpperCase();
+    const url = '/bg/' + upper + '.jpg';
+    const img = new Image();
+    img.onload = () => updateResourceStatus(index, '✅ 存在', true);
+    img.onerror = () => {
+      // Try .png fallback
+      const img2 = new Image();
+      img2.src = '/bg/' + upper + '.png';
+      img2.onload = () => updateResourceStatus(index, '✅ 存在', true);
+      img2.onerror = () => updateResourceStatus(index, '❌ 不存在', false);
+    };
+    img.src = url;
+  }
+
+  function verifyStand(charName, exprNum, index) {
+    const lower = charName.toLowerCase();
+    const upper = charName.toUpperCase();
+    const expr = exprNum || '00';
+    const filename = lower + '_st_s_' + expr + '.png';
+    const url = '/stand/' + upper + '/' + filename;
+    const img = new Image();
+    img.onload = () => updateResourceStatus(index, '✅ 存在', true);
+    img.onerror = () => updateResourceStatus(index, '❌ 不存在', false);
+    img.src = url;
+  }
+
+  function verifyCG(name, index) {
+    // Use resolve-image API
+    fetch('/api/resolve-image?name=' + encodeURIComponent(name))
+      .then(r => {
+        if (r.ok) return r.json();
+        throw new Error('not found');
+      })
+      .then(data => {
+        const label = data.type === 'video' ? '✅ 视频' : '✅ 存在';
+        updateResourceStatus(index, label, true);
+      })
+      .catch(() => {
+        updateResourceStatus(index, '❌ 不存在', false);
+      });
+  }
+
+  function verifyMusic(path, index) {
+    if (!path) {
+      updateResourceStatus(index, '❌ 无路径', false);
+      return;
+    }
+    // Path is like "audio/bgm/BA04.mp3"
+    const filename = path.split('/').pop();
+    const url = '/bgm/' + filename;
+    fetch(url, { method: 'HEAD' })
+      .then(r => {
+        updateResourceStatus(index, r.ok ? '✅ 存在' : '❌ 不存在', r.ok);
+      })
+      .catch(() => {
+        updateResourceStatus(index, '❌ 不存在', false);
+      });
+  }
+
+  function verifyVoice(path, index) {
+    if (!path) {
+      updateResourceStatus(index, '❌ 无路径', false);
+      return;
+    }
+    // Path is like "resources/320H/voice/F001.mp3"
+    // Direct fetch via /resources/ path
+    const url = '/' + path.replace(/\\/g, '/');
+    // First check size to determine short/long audio
+    fetch(url, { method: 'HEAD' })
+      .then(r => {
+        if (r.ok) {
+          const size = parseInt(r.headers.get('content-length') || '0', 10);
+          const sizeLabel = size > 100000 ? '长音频' : '短音频';
+          updateResourceStatus(index, '✅ 存在 (' + sizeLabel + ')', true);
+        } else {
+          updateResourceStatus(index, '❌ 不存在', false);
+        }
+      })
+      .catch(() => {
+        updateResourceStatus(index, '❌ 不存在', false);
+      });
+  }
+
+  // ---- UI helpers ----
+  function showLoading(show) {
+    els.loadingIndicator.style.display = show ? 'block' : 'none';
+    els.parseBtn.disabled = show;
+  }
+
+  function showError(msg) {
+    els.errorMessage.textContent = msg;
+    els.errorMessage.style.display = 'block';
+  }
+
+  // ---- Boot ----
+  loadScripts();
+})();
+</script>
+
+</body>
+</html>

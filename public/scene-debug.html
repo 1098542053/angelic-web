@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>剧本场景加载器 - 调试页面</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Yu Gothic", "Noto Sans SC", "Hiragino Sans", "Microsoft YaHei", sans-serif;
+    background: #0d0d0d;
+    color: #e0e0e0;
+    min-height: 100vh;
+    padding: 16px;
+  }
+
+  .db-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 32px);
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 300;
+    letter-spacing: 2px;
+    color: #ffd700;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 215, 0, 0.2);
+    flex-shrink: 0;
+  }
+  h1 small {
+    font-size: 13px;
+    color: #666;
+    letter-spacing: 0;
+    margin-left: 12px;
+  }
+
+  /* Controls */
+  .ctrl-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
+  select, button, .badge {
+    font-family: inherit;
+    font-size: 13px;
+  }
+
+  select {
+    flex: 1;
+    min-width: 240px;
+    padding: 8px 12px;
+    background: #1a1a1a;
+    color: #e0e0e0;
+    border: 1px solid #333;
+    border-radius: 5px;
+    outline: none;
+    cursor: pointer;
+  }
+  select:focus { border-color: #ffd700; }
+  select option { background: #1a1a1a; }
+
+  button {
+    padding: 8px 18px;
+    background: #2a2a2a;
+    color: #e0e0e0;
+    border: 1px solid #444;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  button:hover { background: #3a3a3a; border-color: #666; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-primary {
+    background: #ffd700;
+    color: #1a1a1a;
+    border-color: #ffd700;
+    font-weight: 600;
+  }
+  .btn-primary:hover { background: #ffe44d; border-color: #ffe44d; }
+
+  .btn-next {
+    background: #2e7d32;
+    border-color: #388e3c;
+    color: #fff;
+  }
+  .btn-next:hover { background: #388e3c; }
+
+  .btn-prev {
+    background: #5d4037;
+    border-color: #6d4c41;
+    color: #fff;
+  }
+  .btn-prev:hover { background: #6d4c41; }
+
+  .btn-danger {
+    background: #b71c1c;
+    border-color: #c62828;
+    color: #fff;
+  }
+  .btn-danger:hover { background: #c62828; }
+
+  .btn-auto-active {
+    background: #f57f17;
+    border-color: #f9a825;
+    color: #fff;
+  }
+
+  .badge {
+    padding: 4px 12px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: #aaa;
+    font-size: 12px;
+  }
+  .badge .num { color: #ffd700; font-weight: 600; }
+
+  /* Main layout: scene renderer + panels */
+  .main-layout {
+    display: flex;
+    gap: 12px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Left: Scene renderer */
+  .scene-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .scene-title {
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    flex-shrink: 0;
+  }
+
+  .scene-stage {
+    flex: 1;
+    position: relative;
+    background: #000;
+    border: 1px solid #222;
+    border-radius: 6px;
+    overflow: hidden;
+    min-height: 300px;
+  }
+
+  /* Background layer */
+  .stage-bg {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  .stage-bg.scene-black {
+    background: #000 !important;
+  }
+
+  /* Stand layer */
+  .stage-stand {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .stage-stand .reader-stand {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    height: 100%;
+    background-size: contain;
+    background-position: center bottom;
+    background-repeat: no-repeat;
+    pointer-events: none;
+  }
+
+  /* CG video */
+  .stage-cg-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+    z-index: 1;
+  }
+
+  /* Dialog box */
+  .stage-dialog {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 16px 20px;
+    background: rgba(0, 0, 0, 0.75);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 2;
+    display: none;
+  }
+  .stage-dialog.visible { display: block; }
+
+  .dialog-speaker {
+    font-size: 14px;
+    color: #ffd700;
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  .dialog-speaker.empty { display: none; }
+
+  .dialog-text {
+    font-size: 15px;
+    line-height: 1.7;
+    color: #f0f0f0;
+    min-height: 1.4em;
+  }
+
+  /* Notification */
+  .stage-notification {
+    position: absolute;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 20px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 6px;
+    color: #ffd700;
+    font-size: 14px;
+    z-index: 3;
+    display: none;
+    text-align: center;
+  }
+
+  /* Right: tabs (instructions + state) */
+  .right-panel {
+    width: 480px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    margin-bottom: 0;
+    flex-shrink: 0;
+    border-bottom: 1px solid #222;
+  }
+
+  .tab-btn {
+    padding: 8px 20px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #888;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 0;
+    transition: all 0.15s;
+  }
+  .tab-btn:hover { color: #ccc; background: rgba(255,255,255,0.03); }
+  .tab-btn.active { color: #ffd700; border-bottom-color: #ffd700; }
+
+  .tab-content {
+    flex: 1;
+    min-height: 0;
+    display: none;
+    overflow: auto;
+  }
+  .tab-content.active { display: block; }
+
+  /* Instruction list */
+  .inst-list {
+    font-size: 12px;
+    line-height: 1.5;
+    border: 1px solid #1a1a1a;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 0;
+  }
+
+  .inst-header {
+    display: flex;
+    padding: 6px 10px;
+    background: #111;
+    border-bottom: 1px solid #222;
+    font-size: 11px;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    gap: 6px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  .inst-header .h-seq { width: 36px; }
+  .inst-header .h-type { width: 50px; }
+  .inst-header .h-info { flex: 1; }
+
+  .inst-row {
+    display: flex;
+    padding: 4px 10px;
+    border-bottom: 1px solid #151515;
+    cursor: pointer;
+    gap: 6px;
+    align-items: center;
+    transition: background 0.1s;
+  }
+  .inst-row:hover { background: rgba(255,255,255,0.03); }
+  .inst-row:last-child { border-bottom: none; }
+  .inst-row.current {
+    background: rgba(255, 215, 0, 0.12);
+    border-left: 3px solid #ffd700;
+    padding-left: 7px;
+  }
+  .inst-row.executed { opacity: 0.7; }
+  .inst-row .seq {
+    width: 36px;
+    color: #555;
+    font-family: Consolas, monospace;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .inst-row .type-badge {
+    width: 50px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-align: center;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+  }
+
+  .inst-row .info {
+    flex: 1;
+    color: #b0b0b0;
+    font-family: Consolas, monospace;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .inst-row .desc {
+    width: 140px;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: #999;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Type badge colors */
+  .tb-label { background: rgba(255,215,0,0.15); color: #ffd700; border-color: rgba(255,215,0,0.2); }
+  .tb-scene { background: rgba(0,0,0,0.3); color: #888; border-color: #333; }
+  .tb-bg { background: rgba(100,180,255,0.15); color: #64b4ff; border-color: rgba(100,180,255,0.2); }
+  .tb-stand { background: rgba(255,180,100,0.15); color: #ffb464; border-color: rgba(255,180,100,0.2); }
+  .tb-cg { background: rgba(255,100,180,0.15); color: #ff64b4; border-color: rgba(255,100,180,0.2); }
+  .tb-hide { background: rgba(200,200,200,0.1); color: #999; border-color: rgba(200,200,200,0.15); }
+  .tb-music { background: rgba(100,255,180,0.15); color: #64ffb4; border-color: rgba(100,255,180,0.2); }
+  .tb-voice { background: rgba(255,100,100,0.15); color: #ff6464; border-color: rgba(255,100,100,0.2); }
+  .tb-dialogue { background: rgba(255,255,255,0.08); color: #ddd; border-color: rgba(255,255,255,0.12); }
+  .tb-other { background: rgba(255,255,255,0.05); color: #aaa; border-color: rgba(255,255,255,0.08); }
+  .tb-menu { background: rgba(255,100,255,0.15); color: #ff64ff; border-color: rgba(255,100,255,0.2); }
+  .tb-return { background: rgba(255,0,0,0.1); color: #ff4444; border-color: rgba(255,0,0,0.15); }
+
+  /* State panel */
+  .state-section {
+    padding: 10px 12px;
+    border-bottom: 1px solid #1a1a1a;
+  }
+  .state-section:last-child { border-bottom: none; }
+
+  .state-label {
+    font-size: 11px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+
+  .state-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    font-size: 12px;
+  }
+  .state-row .key { color: #888; }
+  .state-row .val { color: #e0e0e0; font-family: Consolas, monospace; }
+
+  .active-stand-item {
+    padding: 3px 0;
+    font-size: 12px;
+    color: #ffb464;
+  }
+  .active-stand-item .stand-expr {
+    color: #999;
+    font-size: 11px;
+  }
+
+  /* State tab scrollbar */
+  .tab-content::-webkit-scrollbar { width: 6px; }
+  .tab-content::-webkit-scrollbar-track { background: transparent; }
+  .tab-content::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+  .tab-content::-webkit-scrollbar-thumb:hover { background: #555; }
+
+  /* Error */
+  #error-msg {
+    display: none;
+    padding: 10px 14px;
+    background: rgba(244,67,54,0.1);
+    border: 1px solid rgba(244,67,54,0.3);
+    border-radius: 5px;
+    color: #f44336;
+    font-size: 13px;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+  }
+
+  /* Loading */
+  #loading-indicator {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 10;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+    color: #888;
+    font-size: 13px;
+  }
+  #loading-indicator .spinner {
+    width: 24px; height: 24px;
+    border: 2px solid #333;
+    border-top-color: #ffd700;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="db-container">
+  <h1>剧本场景加载器 <small>Scene Debugger</small></h1>
+
+  <div class="ctrl-bar">
+    <select id="script-select">
+      <option value="">— 选择剧本文件 —</option>
+    </select>
+    <button id="btn-load" class="btn-primary">加载并运行</button>
+    <button id="btn-prev" class="btn-prev" disabled>◀ 上一步</button>
+    <button id="btn-next" class="btn-next" disabled>下一步 ▶</button>
+    <button id="btn-auto" disabled>自动 ▶▶</button>
+    <button id="btn-label-jump" disabled>跳转标签 ▼</button>
+    <span class="badge">指令 <span class="num" id="stat-idx">-</span> / <span class="num" id="stat-total">-</span></span>
+  </div>
+
+  <div id="error-msg"></div>
+
+  <div class="main-layout">
+    <!-- Scene Renderer -->
+    <div class="scene-panel">
+      <div class="scene-title">▶ 场景渲染</div>
+      <div class="scene-stage" id="scene-stage">
+        <div class="stage-bg" id="stage-bg"></div>
+        <div class="stage-stand" id="stage-stand"></div>
+        <div class="stage-dialog" id="stage-dialog">
+          <div class="dialog-speaker empty" id="stage-speaker"></div>
+          <div class="dialog-text" id="stage-text"></div>
+        </div>
+        <div class="stage-notification" id="stage-notif"></div>
+        <div id="loading-indicator">
+          <div class="spinner"></div>
+          <div>加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Tabs -->
+    <div class="right-panel">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="instructions">指令列表</button>
+        <button class="tab-btn" data-tab="state">执行状态</button>
+      </div>
+
+      <!-- Instructions tab -->
+      <div class="tab-content active" id="tab-instructions">
+        <div class="inst-list" id="inst-list">
+          <div class="inst-header">
+            <div class="h-seq">#</div>
+            <div class="h-type">类型</div>
+            <div class="h-info">指令内容</div>
+          </div>
+          <div id="inst-entries"></div>
+        </div>
+      </div>
+
+      <!-- State tab -->
+      <div class="tab-content" id="tab-state">
+        <div class="state-section">
+          <div class="state-label">执行状态</div>
+          <div class="state-row"><span class="key">当前指令索引</span><span class="val" id="s-curr-idx">-</span></div>
+          <div class="state-row"><span class="key">当前指令类型</span><span class="val" id="s-curr-type">-</span></div>
+          <div class="state-row"><span class="key">脚本路径</span><span class="val" id="s-script-path">-</span></div>
+          <div class="state-row"><span class="key">是否运行中</span><span class="val" id="s-running">-</span></div>
+        </div>
+        <div class="state-section">
+          <div class="state-label">背景 / CG</div>
+          <div class="state-row"><span class="key">背景图</span><span class="val" id="s-bg">-</span></div>
+          <div class="state-row"><span class="key">BG颜色</span><span class="val" id="s-bg-color">-</span></div>
+        </div>
+        <div class="state-section">
+          <div class="state-label">活跃立绘</div>
+          <div id="s-active-stands"><div style="color:#555;font-size:12px;">无</div></div>
+        </div>
+        <div class="state-section">
+          <div class="state-label">音频</div>
+          <div class="state-row"><span class="key">BGM</span><span class="val" id="s-bgm">-</span></div>
+          <div class="state-row"><span class="key">语音</span><span class="val" id="s-voice">-</span></div>
+        </div>
+        <div class="state-section">
+          <div class="state-label">标签跳转</div>
+          <div style="padding:4px 0;">
+            <select id="label-jump-select" style="width:100%;font-size:12px;padding:5px 8px;">
+              <option value="">— 选择标签 —</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ---- DOM refs ----
+  const $ = id => document.getElementById(id);
+  const el = {
+    select: $('script-select'),
+    btnLoad: $('btn-load'),
+    btnPrev: $('btn-prev'),
+    btnNext: $('btn-next'),
+    btnAuto: $('btn-auto'),
+    btnLabelJump: $('btn-label-jump'),
+    error: $('error-msg'),
+    statIdx: $('stat-idx'),
+    statTotal: $('stat-total'),
+    stage: $('scene-stage'),
+    bg: $('stage-bg'),
+    stand: $('stage-stand'),
+    dialog: $('stage-dialog'),
+    speaker: $('stage-speaker'),
+    text: $('stage-text'),
+    notif: $('stage-notif'),
+    loading: $('loading-indicator'),
+    instEntries: $('inst-entries'),
+    sCurrIdx: $('s-curr-idx'),
+    sCurrType: $('s-curr-type'),
+    sScriptPath: $('s-script-path'),
+    sRunning: $('s-running'),
+    sBg: $('s-bg'),
+    sBgColor: $('s-bg-color'),
+    sActiveStands: $('s-active-stands'),
+    sBgm: $('s-bgm'),
+    sVoice: $('s-voice'),
+    labelJumpSelect: $('label-jump-select'),
+  };
+
+  // ---- State ----
+  let instructions = [];
+  let labels = {};
+  let currentIdx = 0;
+  let executedIndices = new Set();
+  let autoMode = false;
+  let autoTimer = null;
+  let currentScriptPath = null;
+  let activeStands = {};
+  let currentBGM = null;
+  let currentVoice = null;
+  let cgVideoEl = null;
+  let callStack = [];
+  let waitingForReturn = false;
+  let _busy = false;
+  let _busyDepth = 0;
+
+  // ---- Scene Renderer (same logic as NovelReader) ----
+  function _clearDisplayables() {
+    el.bg.style.backgroundImage = 'none';
+    el.bg.style.backgroundColor = '#000';
+    _removeCGVideo();
+    el.stand.innerHTML = '';
+    activeStands = {};
+    el.dialog.classList.remove('visible');
+    el.speaker.textContent = '';
+    el.text.textContent = '';
+    el.notif.style.display = 'none';
+  }
+
+  function _removeCGVideo() {
+    if (cgVideoEl) {
+      cgVideoEl.pause();
+      cgVideoEl.remove();
+      cgVideoEl = null;
+    }
+  }
+
+  function _setBackground(name) {
+    return new Promise((resolve) => {
+      if (!name || name === 'black') {
+        _removeCGVideo();
+        el.bg.style.backgroundImage = 'none';
+        el.bg.style.backgroundColor = '#000';
+        resolve();
+        return;
+      }
+
+      if (/^BA\d+/i.test(name)) {
+        _removeCGVideo();
+        el.bg.style.backgroundImage = 'url(/bg/' + name.toUpperCase() + '.jpg)';
+        el.bg.style.backgroundColor = 'transparent';
+        resolve();
+        return;
+      }
+
+      fetch('/api/resolve-cg?name=' + encodeURIComponent(name))
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (data && data.type === 'video') {
+            _showCGVideo(data.url);
+          } else if (data && data.url) {
+            _removeCGVideo();
+            el.bg.style.backgroundImage = 'url(' + data.url + ')';
+            el.bg.style.backgroundColor = 'transparent';
+          } else {
+            throw new Error('not found');
+          }
+          resolve();
+        })
+        .catch(function() {
+          _removeCGVideo();
+          // Try direct fallback
+          var url = _resolveImageUrl(name);
+          if (url) {
+            el.bg.style.backgroundImage = url;
+            el.bg.style.backgroundColor = 'transparent';
+          } else {
+            el.bg.style.backgroundImage = 'none';
+            el.bg.style.backgroundColor = '#111';
+          }
+          resolve();
+        });
+    });
+  }
+
+  function _showCGVideo(url) {
+    _removeCGVideo();
+    el.bg.style.backgroundImage = 'none';
+    el.bg.style.backgroundColor = '#000';
+    var video = document.createElement('video');
+    video.className = 'stage-cg-video';
+    video.src = url;
+    video.autoplay = true;
+    video.loop = true;
+    video.muted = false;
+    video.playsInline = true;
+    el.stage.appendChild(video);
+    video.play().catch(function(e) { console.warn('Video play failed:', e); });
+    cgVideoEl = video;
+  }
+
+  function _resolveImageUrl(name) {
+    var upper = name.toUpperCase();
+    if (/^BA\d+/i.test(name)) return 'url(/bg/' + upper + '.jpg)';
+    if (name.length >= 4) {
+      var prefix = upper.substring(0, 4);
+      return 'url(/resources/' + prefix + '/image/' + upper + '.jpg)';
+    }
+    return null;
+  }
+
+  function _showStand(name, transform) {
+    var parts = name.split(/\s+/);
+    var charId = parts[0].toUpperCase();
+    var expr = parts[1] || '01';
+
+    var transformAttrs = {};
+    if (transform) {
+      var yposMatch = transform.match(/ypos\s+(-?[\d.]+)/);
+      if (yposMatch) transformAttrs.ypos = parseFloat(yposMatch[1]);
+      var xalignMatch = transform.match(/xalign\s+([\d.]+)/);
+      if (xalignMatch) transformAttrs.xalign = parseFloat(xalignMatch[1]);
+      var zoomMatch = transform.match(/zoom\s+([\d.]+)/);
+      if (zoomMatch) transformAttrs.zoom = parseFloat(zoomMatch[1]);
+    }
+
+    var el2 = activeStands[charId];
+    if (!el2) {
+      el2 = document.createElement('div');
+      el2.className = 'reader-stand';
+      el2.dataset.charId = charId;
+      el.stand.appendChild(el2);
+      activeStands[charId] = el2;
+    }
+
+    var exprPadded = expr.padStart(2, '0');
+    var bodyUrl = '/stand/' + charId + '/' + charId + '_st_s_99.png';
+    var exprUrl = '/stand/' + charId + '/' + charId + '_st_s_' + exprPadded + '.png';
+    if (exprPadded === '99') {
+      el2.style.backgroundImage = 'url(' + bodyUrl + ')';
+    } else {
+      el2.style.backgroundImage = 'url(' + exprUrl + '), url(' + bodyUrl + ')';
+    }
+    el2.style.backgroundSize = 'contain, contain';
+    el2.style.backgroundPosition = 'center bottom, center bottom';
+    el2.style.backgroundRepeat = 'no-repeat, no-repeat';
+    el2.style.display = 'block';
+
+    if (transformAttrs.zoom) el2.style.transform = 'scale(' + transformAttrs.zoom + ')';
+    if (transformAttrs.ypos !== undefined) el2.style.bottom = (-transformAttrs.ypos) + 'px';
+    if (transformAttrs.xalign !== undefined) {
+      el2.style.left = (transformAttrs.xalign * 100) + '%';
+      el2.style.transform = 'translateX(-' + (transformAttrs.xalign * 100) + '%)' + (transformAttrs.zoom ? ' scale(' + transformAttrs.zoom + ')' : '');
+    }
+  }
+
+  function _hideStand(name) {
+    var parts = name.split(/\s+/);
+    var charId = parts[0].toUpperCase();
+    var el2 = activeStands[charId];
+    if (el2) el2.style.display = 'none';
+  }
+
+  function _showDialogue(speaker, text) {
+    if (speaker) {
+      el.speaker.textContent = speaker;
+      el.speaker.className = 'dialog-speaker';
+    } else {
+      el.speaker.className = 'dialog-speaker empty';
+    }
+    el.text.innerHTML = text.replace(/\\n/g, '<br>');
+    el.dialog.classList.add('visible');
+  }
+
+  function _playVoice(path) {
+    if (currentVoice) { currentVoice.pause(); currentVoice = null; }
+    var audio = new Audio('/' + path.replace(/\\/g, '/'));
+    audio.volume = 1.0;
+    audio.play().catch(function(e) { console.warn('Voice play failed:', e); });
+    currentVoice = audio;
+  }
+
+  function _stopVoice() {
+    if (currentVoice) { currentVoice.pause(); currentVoice = null; }
+  }
+
+  function _playBGM(path, fadein, fadeout) {
+    _stopBGM(fadeout || 0);
+    var audio = new Audio('/' + path.replace(/\\/g, '/'));
+    audio.loop = true;
+    audio.volume = 0.5;
+    if (fadein && fadein > 0) {
+      audio.volume = 0;
+      _fadeAudio(audio, 0, 0.5, fadein);
+    }
+    audio.play().catch(function(e) { console.warn('BGM play failed:', e); });
+    currentBGM = audio;
+  }
+
+  function _stopBGM(fadeout) {
+    if (!currentBGM) return;
+    if (fadeout && fadeout > 0) {
+      var audio = currentBGM;
+      currentBGM = null;
+      _fadeAudio(audio, audio.volume, 0, fadeout, function() { audio.pause(); });
+    } else {
+      currentBGM.pause();
+      currentBGM = null;
+    }
+  }
+
+  function _fadeAudio(audio, startVol, endVol, duration, onComplete) {
+    var steps = Math.max(Math.floor(duration * 20), 1);
+    var stepVol = (endVol - startVol) / steps;
+    var currentStep = 0;
+    audio.volume = startVol;
+    var timer = setInterval(function() {
+      currentStep++;
+      if (currentStep >= steps) {
+        clearInterval(timer);
+        audio.volume = endVol;
+        if (onComplete) onComplete();
+      } else {
+        audio.volume = Math.max(0, Math.min(1, audio.volume + stepVol));
+      }
+    }, duration * 1000 / steps);
+  }
+
+  function _showNotification(msg) {
+    el.text.textContent = msg;
+    el.speaker.className = 'dialog-speaker empty';
+    el.dialog.classList.add('visible');
+  }
+
+  function _showMenu(items) {
+    // In debug mode, show notification with choice count
+    if (!items || items.length === 0) return;
+    var lines = ['[选项菜单]'];
+    for (var mi = 0; mi < items.length; mi++) {
+      lines.push('  ' + (mi + 1) + '. ' + items[mi].label + ' → ' + items[mi].target);
+    }
+    el.text.innerHTML = lines.join('<br>');
+    el.speaker.textContent = '📋 选项';
+    el.speaker.className = 'dialog-speaker';
+    el.dialog.classList.add('visible');
+  }
+
+  function _skipDefs() {
+    while (currentIdx < instructions.length) {
+      var inst = instructions[currentIdx];
+      if (!inst) { currentIdx++; continue; }
+      if (inst.type === 'image_def' || inst.type === 'python' || inst.type === 'screen' || inst.type === 'with') {
+        currentIdx++;
+        continue;
+      }
+      break;
+    }
+  }
+
+  async function _next(skipGuard) {
+    if (currentIdx >= instructions.length) {
+      _showNotification('剧本结束');
+      _updateUI();
+      return;
+    }
+    // Re-entrancy guard: external rapid calls blocked; internal (skipGuard=true) bypass
+    if (!skipGuard && _busy) return;
+    _busy = true;
+    try {
+      _skipDefs();
+      if (currentIdx >= instructions.length) {
+        _showNotification('剧本结束');
+        _updateUI();
+        return;
+      }
+      var inst = instructions[currentIdx];
+      executedIndices.add(currentIdx);
+      await _execute(inst);
+      _updateUI();
+    } finally {
+      _busy = false;
+    }
+  }
+
+  async function _execute(inst) {
+    switch (inst.type) {
+      case 'label':
+        currentIdx++;
+        await _next(true);
+        break;
+
+      case 'scene':
+        _clearDisplayables();
+        await _setBackground(inst.name);
+        currentIdx++;
+        _autoAdvance();
+        break;
+
+      case 'show':
+        if (inst.showType === 'bg' || inst.showType === 'cg') {
+          await _setBackground(inst.name);
+        } else {
+          _showStand(inst.name, inst.transform);
+        }
+        currentIdx++;
+        _autoAdvance();
+        break;
+
+      case 'hide':
+        _hideStand(inst.name);
+        currentIdx++;
+        _autoAdvance();
+        break;
+
+      case 'dialogue':
+        _showDialogue(inst.speaker, inst.text);
+        currentIdx++;
+        if (autoMode) {
+          autoTimer = setTimeout(function() { _step(); }, 2000 + inst.text.length * 50);
+        }
+        break;
+
+      case 'voice':
+        _playVoice(inst.path);
+        currentIdx++;
+        await _next(true);
+        break;
+
+      case 'play_music':
+        _playBGM(inst.path, inst.fadein, inst.fadeout);
+        currentIdx++;
+        _autoAdvance();
+        break;
+
+      case 'stop_music':
+        _stopBGM(inst.fadeout);
+        currentIdx++;
+        _autoAdvance();
+        break;
+
+      case 'stop_voice':
+        _stopVoice();
+        currentIdx++;
+        _autoAdvance();
+        break;
+
+      case 'play_sound':
+        var audio = new Audio('/' + inst.path.replace(/\\/g, '/'));
+        audio.volume = 1.0;
+        audio.play().catch(function(e) { console.warn('Sound play failed:', e); });
+        currentIdx++;
+        _autoAdvance();
+        break;
+
+      case 'jump':
+        await _jumpToLabel(inst.target);
+        break;
+
+      case 'jump_expression':
+        _clearDisplayables();
+        el.speaker.className = 'dialog-speaker empty';
+        el.text.textContent = '— 场景结束 —';
+        el.dialog.classList.add('visible');
+        waitingForReturn = true;
+        break;
+
+      case 'call':
+        callStack.push({ idx: currentIdx + 1, scriptPath: currentScriptPath });
+        await _jumpToLabel(inst.target);
+        break;
+
+      case 'call_screen':
+        currentIdx++;
+        await _next(true);
+        break;
+
+      case 'return':
+        if (callStack.length > 0) {
+          var ret = callStack.pop();
+          currentIdx = ret.idx;
+        } else {
+          currentIdx++;
+        }
+        await _next(true);
+        break;
+
+      case 'menu':
+        _showMenu(inst.items);
+        currentIdx++;
+        break;
+
+      case 'pause':
+        _showNotification('...');
+        await new Promise(function(ok) { setTimeout(ok, (inst.duration || 1) * 1000); });
+        currentIdx++;
+        await _next(true);
+        break;
+
+      default:
+        currentIdx++;
+        await _next(true);
+        break;
+    }
+  }
+
+  function _step() {
+    if (waitingForReturn) return;
+    if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+    _next();
+  }
+
+  function _autoAdvance() {
+    if (autoMode) {
+      autoTimer = setTimeout(function() { _step(); }, 800);
+    }
+  }
+
+  function _findLabelIndex(name) {
+    for (var i = 0; i < instructions.length; i++) {
+      if (instructions[i].type === 'label' && instructions[i].name === name) return i;
+    }
+    return -1;
+  }
+
+  async function _jumpToLabel(target) {
+    if (labels[target]) {
+      var labelIdx = _findLabelIndex(target);
+      currentIdx = labelIdx > 0 ? labelIdx - 1 : 0;
+      await _next(true);
+      return;
+    }
+    try {
+      var resp = await fetch('/api/labels');
+      var data = await resp.json();
+      if (data.labels && data.labels[target]) {
+        currentScriptPath = data.labels[target];
+        _loadScript(currentScriptPath, target);
+      } else {
+        _showNotification('找不到目标: ' + target);
+      }
+    } catch (e) {
+      _showNotification('跳转失败: ' + target);
+    }
+  }
+
+  // ---- Script Loading ----
+  function _loadScript(scriptPath, startLabel) {
+    showLoading(true);
+    currentScriptPath = scriptPath;
+
+    fetch('/api/parse-script?path=' + encodeURIComponent(scriptPath))
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(data) {
+        instructions = data.instructions || [];
+        labels = data.labels || {};
+
+        // Find starting index
+        if (startLabel && labels[startLabel]) {
+          // Search instruction array for the label
+          var labelIdx = -1;
+          for (var i = 0; i < instructions.length; i++) {
+            if (instructions[i].type === 'label' && instructions[i].name === startLabel) {
+              labelIdx = i;
+              break;
+            }
+          }
+          currentIdx = labelIdx > 0 ? labelIdx - 1 : 0;
+        } else {
+          currentIdx = 0;
+        }
+
+        executedIndices = new Set();
+        callStack = [];
+        waitingForReturn = false;
+        _clearDisplayables();
+        el.dialog.classList.remove('visible');
+        el.notif.style.display = 'none';
+
+        // Populate label jump
+        populateLabels();
+
+        _updateUI();
+        _renderInstructionList();
+
+        // Auto-start
+        showLoading(false);
+        _step();
+      })
+      .catch(function(e) {
+        showError('加载失败: ' + e.message);
+        showLoading(false);
+      });
+  }
+
+  function populateLabels() {
+    el.labelJumpSelect.innerHTML = '<option value="">— 选择标签 —</option>';
+    var names = Object.keys(labels).sort();
+    for (var li = 0; li < names.length; li++) {
+      var opt = document.createElement('option');
+      opt.value = names[li];
+      opt.textContent = names[li];
+      el.labelJumpSelect.appendChild(opt);
+    }
+  }
+
+  // ---- UI Updates ----
+  function _updateUI() {
+    var total = instructions.length;
+    el.statIdx.textContent = currentIdx;
+    el.statTotal.textContent = total;
+
+    // Buttons
+    el.btnPrev.disabled = (executedIndices.size === 0 || currentIdx <= 0);
+    el.btnNext.disabled = (currentIdx >= total);
+
+    // State panel
+    el.sCurrIdx.textContent = currentIdx;
+    var inst = instructions[currentIdx];
+    el.sCurrType.textContent = inst ? (inst.type + (inst.showType ? '/' + inst.showType : '')) : '-';
+    el.sScriptPath.textContent = currentScriptPath || '-';
+    el.sRunning.textContent = currentIdx < total ? '是' : '否';
+
+    // BG state
+    var bgImg = el.bg.style.backgroundImage;
+    var bgColor = el.bg.style.backgroundColor;
+    el.sBg.textContent = bgImg && bgImg !== 'none' ? bgImg.substring(0, 60) : '无';
+    el.sBgColor.textContent = bgColor || '#000';
+
+    // Active stands
+    var standIds = Object.keys(activeStands).filter(function(id) {
+      return activeStands[id].style.display !== 'none';
+    });
+    if (standIds.length === 0) {
+      el.sActiveStands.innerHTML = '<div style="color:#555;font-size:12px;">无</div>';
+    } else {
+      var html = '';
+      for (var si = 0; si < standIds.length; si++) {
+        var bg = activeStands[standIds[si]].style.backgroundImage || '';
+        var bgShort = bg.substring(0, 50);
+        html += '<div class="active-stand-item">' + standIds[si] + ' <span class="stand-expr">' + bgShort + '</span></div>';
+      }
+      el.sActiveStands.innerHTML = html;
+    }
+
+    // Audio
+    el.sBgm.textContent = currentBGM ? '播放中' : '无';
+    el.sVoice.textContent = currentVoice ? '播放中' : '无';
+
+    // Highlight current instruction
+    highlightCurrentInstruction();
+  }
+
+  function highlightCurrentInstruction() {
+    var rows = el.instEntries.querySelectorAll('.inst-row');
+    for (var i = 0; i < rows.length; i++) {
+      var ri = parseInt(rows[i].dataset.idx, 10);
+      rows[i].classList.remove('current');
+      rows[i].classList.toggle('executed', executedIndices.has(ri));
+      if (ri === currentIdx) {
+        rows[i].classList.add('current');
+        rows[i].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }
+
+  function _renderInstructionList() {
+    el.instEntries.innerHTML = '';
+    if (instructions.length === 0) {
+      el.instEntries.innerHTML = '<div style="padding:30px;text-align:center;color:#555;">无指令</div>';
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < instructions.length; i++) {
+      var row = document.createElement('div');
+      row.className = 'inst-row';
+      row.dataset.idx = i;
+      if (i === currentIdx) row.classList.add('current');
+      if (executedIndices.has(i)) row.classList.add('executed');
+
+      var inst = instructions[i];
+
+      // Sequence number
+      var seq = document.createElement('div');
+      seq.className = 'seq';
+      seq.textContent = '[' + String(i).padStart(3, '0') + ']';
+      row.appendChild(seq);
+
+      // Type badge
+      var badge = document.createElement('div');
+      badge.className = 'type-badge ' + getBadgeClass(inst);
+      badge.textContent = getBadgeLabel(inst);
+      row.appendChild(badge);
+
+      // Info
+      var info = document.createElement('div');
+      info.className = 'info';
+      info.textContent = getShortInfo(inst);
+      row.appendChild(info);
+
+      // Description
+      var desc = document.createElement('div');
+      desc.className = 'desc';
+      desc.textContent = getShortDesc(inst);
+      row.appendChild(desc);
+
+      // Click to jump
+      (function(idx) {
+        row.addEventListener('click', function() {
+          jumpToInstruction(idx);
+        });
+      })(i);
+
+      frag.appendChild(row);
+    }
+    el.instEntries.appendChild(frag);
+  }
+
+  function getBadgeClass(inst) {
+    switch (inst.type) {
+      case 'label': return 'tb-label';
+      case 'scene': return 'tb-scene';
+      case 'show':
+        if (inst.showType === 'bg') return 'tb-bg';
+        if (inst.showType === 'cg') return 'tb-cg';
+        return 'tb-stand';
+      case 'hide': return 'tb-hide';
+      case 'play_music': case 'stop_music': return 'tb-music';
+      case 'voice': case 'stop_voice': return 'tb-voice';
+      case 'dialogue': return 'tb-dialogue';
+      case 'menu': return 'tb-menu';
+      case 'return': return 'tb-return';
+      default: return 'tb-other';
+    }
+  }
+
+  function getBadgeLabel(inst) {
+    switch (inst.type) {
+      case 'label': return '标签';
+      case 'scene': return '场景';
+      case 'show':
+        if (inst.showType === 'bg') return '背景';
+        if (inst.showType === 'cg') return 'CG';
+        return '立绘';
+      case 'hide': return '隐藏';
+      case 'play_music': return 'BGM';
+      case 'stop_music': return '⏹BGM';
+      case 'voice': return '语音';
+      case 'stop_voice': return '⏹语音';
+      case 'dialogue': return '对话';
+      case 'menu': return '选项';
+      case 'return': return '返回';
+      case 'jump': case 'jump_expression': return '跳转';
+      case 'call': case 'call_screen': return '调用';
+      default: return inst.type.substring(0, 4);
+    }
+  }
+
+  function getShortInfo(inst) {
+    switch (inst.type) {
+      case 'label': return 'label ' + inst.name;
+      case 'scene': return 'scene ' + (inst.name || '');
+      case 'show':
+        var cmd = 'show ' + inst.name;
+        if (inst.transform) cmd += ' {..}';
+        return cmd;
+      case 'hide': return 'hide ' + (inst.name || '');
+      case 'play_music': return 'play music ' + ((inst.path || '').split('/').pop() || '');
+      case 'voice': return 'voice ' + ((inst.path || '').split('/').pop() || '');
+      case 'dialogue': return (inst.speaker || '(旁白)') + ': ' + (inst.text || '').substring(0, 30);
+      case 'menu': return 'menu (' + (inst.items || []).length + '项)';
+      case 'jump': return 'jump ' + (inst.target || '');
+      case 'jump_expression': return 'jump expression ' + (inst.variable || '');
+      case 'call': return 'call ' + (inst.target || '');
+      case 'return': return 'return';
+      case 'stop_music': return 'stop music';
+      case 'stop_voice': return 'stop voice';
+      case 'play_sound': return 'play ' + ((inst.path || '').split('/').pop() || '');
+      case 'image_def': return 'image ' + ((inst.raw || '').substring(0, 30) || (inst.composite ? inst.composite.name : ''));
+      case 'pause': return 'pause ' + (inst.duration || '');
+      case 'with': return 'with ' + (inst.effect || '');
+      case 'call_screen': return 'call screen ' + (inst.target || '');
+      default: return inst.type;
+    }
+  }
+
+  function getShortDesc(inst) {
+    switch (inst.type) {
+      case 'label': return '🏷 ' + inst.name;
+      case 'scene': return inst.name === 'black' ? '黑屏清场' : '切换场景';
+      case 'show':
+        if (inst.showType === 'bg') return '背景图';
+        if (inst.showType === 'cg') return 'CG图';
+        return '立绘 ' + inst.name.split(/\s+/)[0];
+      case 'hide': return '隐藏 ' + (inst.name || '').toUpperCase();
+      case 'play_music': return '播放BGM';
+      case 'voice': return '播放语音';
+      case 'dialogue': return inst.speaker ? '对话' : '旁白';
+      case 'menu': return '选项菜单';
+      case 'jump': case 'jump_expression': return '跳转';
+      case 'call': return '调用';
+      case 'return': return '返回';
+      default: return '';
+    }
+  }
+
+  async function jumpToInstruction(idx) {
+    if (idx < 0 || idx >= instructions.length) return;
+    currentIdx = idx;
+    executedIndices.add(idx);
+    var inst = instructions[idx];
+    _clearDisplayables();
+    if (inst.type === 'label') {
+      // For labels, just reset and step
+      await _next(true);
+    } else {
+      // Re-execute from this instruction
+      await _execute(inst);
+    }
+    _updateUI();
+  }
+
+  // ---- Script List Loading ----
+  var scriptList = [];
+  function loadScriptList() {
+    fetch('/api/scripts')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        scriptList = (data.scripts || []).filter(function(s) { return s.endsWith('.rpy'); }).sort();
+        el.select.innerHTML = '<option value="">— 选择剧本文件 —</option>';
+        for (var i = 0; i < scriptList.length; i++) {
+          var opt = document.createElement('option');
+          opt.value = scriptList[i];
+          var display = scriptList[i].replace(/\.rpy$/, '');
+          opt.textContent = display + '  (' + scriptList[i] + ')';
+          el.select.appendChild(opt);
+        }
+      })
+      .catch(function(e) {
+        showError('无法加载剧本列表: ' + e.message);
+      });
+  }
+
+  // ---- Event Handlers ----
+  el.btnLoad.addEventListener('click', function() {
+    var path = el.select.value;
+    if (!path) { showError('请选择一个剧本文件'); return; }
+    el.error.style.display = 'none';
+    _loadScript(path);
+  });
+
+  el.btnNext.addEventListener('click', function() {
+    if (waitingForReturn) return;
+    _step();
+  });
+
+  el.btnPrev.addEventListener('click', function() {
+    // Not fully supported - just reset and re-execute
+    if (currentIdx > 0) {
+      var targetIdx = currentIdx - 1;
+      currentIdx = targetIdx;
+      _clearDisplayables();
+      // Re-render by re-executing from start or using snapshot approach
+      // Simple approach: just go back one instruction and re-execute
+      _execute(instructions[targetIdx]);
+      _updateUI();
+    }
+  });
+
+  el.btnAuto.addEventListener('click', function() {
+    autoMode = !autoMode;
+    el.btnAuto.classList.toggle('btn-auto-active', autoMode);
+    el.btnAuto.textContent = autoMode ? '⏸ 暂停' : '自动 ▶▶';
+    if (autoMode) {
+      el.btnAuto.disabled = false;
+      _autoAdvance();
+    } else {
+      if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+    }
+  });
+
+  el.labelJumpSelect.addEventListener('change', function() {
+    var target = el.labelJumpSelect.value;
+    if (!target) return;
+    el.labelJumpSelect.value = '';
+    _jumpToLabel(target);
+  });
+
+  el.btnLabelJump.addEventListener('click', function() {
+    el.labelJumpSelect.focus();
+  });
+
+  // Tab switching
+  var tabBtns = document.querySelectorAll('.tab-btn');
+  for (var ti = 0; ti < tabBtns.length; ti++) {
+    (function(btn) {
+      btn.addEventListener('click', function() {
+        var tabId = btn.dataset.tab;
+        // Deactivate all
+        for (var tj = 0; tj < tabBtns.length; tj++) tabBtns[tj].classList.remove('active');
+        document.querySelectorAll('.tab-content').forEach(function(tc) { tc.classList.remove('active'); });
+        btn.classList.add('active');
+        var tabEl = document.getElementById('tab-' + tabId);
+        if (tabEl) tabEl.classList.add('active');
+      });
+    })(tabBtns[ti]);
+  }
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function(e) {
+    if (e.key === ' ' || e.key === 'Enter') {
+      if (document.activeElement && (document.activeElement.tagName === 'SELECT' || document.activeElement.tagName === 'BUTTON')) return;
+      e.preventDefault();
+      _step();
+    }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); el.btnPrev.click(); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); el.btnNext.click(); }
+  });
+
+  // ---- Helpers ----
+  function showLoading(show) {
+    el.loading.style.display = show ? 'flex' : 'none';
+  }
+
+  function showError(msg) {
+    el.error.textContent = msg;
+    el.error.style.display = 'block';
+  }
+
+  // ---- Boot ----
+  loadScriptList();
+})();
+</script>
+</body>
+</html>
