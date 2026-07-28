@@ -258,7 +258,7 @@
       img.src = `/shome/${ch.id}/${ch.id}_gr_it_idle.jpg`;
       img.onerror = function() {
         this.onerror = null;
-        this.src = `/stand/${ch.id}/${ch.id.toLowerCase()}_st_s_01.png`;
+        this.src = `/stand/${ch.id}/${ch.id}_st_s_01.png`;
       };
       thumb.appendChild(img);
       card.appendChild(thumb);
@@ -343,15 +343,14 @@
     // Character stands on the left
     const leftStand = document.createElement('div');
     leftStand.className = 'char-detail-stand';
-    const charIdLower = ch.id.toLowerCase();
     // Body image (base)
     const bodyImg = document.createElement('img');
     bodyImg.className = 'char-detail-stand-img';
-    bodyImg.src = `/stand/${ch.id}/${charIdLower}_st_s_99.png`;
+    bodyImg.src = `/stand/${ch.id}/${ch.id}_st_s_99.png`;
     bodyImg.onerror = function() { this.onerror = null; this.style.display = 'none'; };
     leftStand.appendChild(bodyImg);
     // Expression overlay (current from ch.stands[1] or default 01)
-    const currentExpr = ch.stands.length > 1 ? ch.stands[1] : charIdLower + '_st_s_01';
+    const currentExpr = ch.stands.length > 1 ? ch.stands[1] : ch.id + '_st_s_01';
     const exprImg = document.createElement('img');
     exprImg.className = 'char-detail-stand-img overlay';
     exprImg.dataset.expr = currentExpr;
@@ -528,7 +527,7 @@
       btnImg.src = `/thumbnail/${scene.thumb}_idle.jpg`;
       btnImg.onerror = function() {
         this.onerror = null;
-        this.src = `/stand/${ch.id}/${ch.id.toLowerCase()}_st_s_01.png`;
+        this.src = `/stand/${ch.id}/${ch.id}_st_s_01.png`;
       };
       btnImg.className = 'detail-scene-thumb';
       btn.appendChild(btnImg);

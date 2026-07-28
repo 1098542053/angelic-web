@@ -506,7 +506,7 @@ app.get('/api/character-scenes', (req, res) => {
       characters.push({
         id: charId,
         bg: bg,
-        stands: stands.length > 0 ? stands : [charId.toLowerCase() + '_st_s_99', charId.toLowerCase() + '_st_s_07'],
+        stands: stands.length > 0 ? stands : [charId + '_st_s_99', charId + '_st_s_07'],
         scenes: scenes
       });
     } catch (e) {
