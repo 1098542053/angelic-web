@@ -1,0 +1,18 @@
+# ── Resource data (manually deployed, too large for git) ──
+data/
+
+# ── Node ──
+node_modules/
+
+# ── Temporary files ──
+translate_temp*.js
+*.log
+*.tmp
+
+# ── OS files ──
+.DS_Store
+Thumbs.db
+
+# ── IDE ──
+.vscode/
+.idea/
