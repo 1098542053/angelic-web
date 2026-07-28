@@ -477,9 +477,10 @@ app.get('/api/character-scenes', (req, res) => {
         }
 
         // Character stand: add "001iux_st_s_99" ...
+        // Note: rpy files use lowercase (001iux), but actual filenames are uppercase (001IUX)
         const standMatch = line.match(/^add\s+"(\w+_st_s_\w+)"\s/);
         if (standMatch) {
-          stands.push(standMatch[1]);
+          stands.push(standMatch[1].toUpperCase());
           continue;
         }
 
